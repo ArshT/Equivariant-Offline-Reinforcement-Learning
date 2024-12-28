@@ -131,9 +131,8 @@ def train():
     replay_buffer_mix = QLearningBuffer(offline_buffer_size)
     replay_buffer_sub_optimal = QLearningBuffer(offline_buffer_size)
     
-    if planner_episode < data_expert_demos:
-        print("Planner Episode should be greater than or equal to data_expert_demos")
-        return
+    if data_collection_type == 'optimal':
+        planner_episode = data_expert_demos
     
     if planner_episode > 0:
         planner_envs = envs
