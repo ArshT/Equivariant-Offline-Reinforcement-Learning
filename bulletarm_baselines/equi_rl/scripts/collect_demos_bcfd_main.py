@@ -97,141 +97,140 @@ def evaluate(envs, evaluation_agent,result_list):
 
 
 def train():
-    if data_collection:
-        eval_thread = None
-        result = [0]
-        start_time = time.time()
-        if seed is not None:
-            set_seed(seed)
-        # setup env
-        print('creating envs')
-        envs = EnvWrapper(num_processes, env, env_config, planner_config)
-        eval_envs = EnvWrapper(num_eval_processes, env, env_config, planner_config)
+    eval_thread = None
+    result = [0]
+    start_time = time.time()
+    if seed is not None:
+        set_seed(seed)
+    # setup env
+    print('creating envs')
+    envs = EnvWrapper(num_processes, env, env_config, planner_config)
+    eval_envs = EnvWrapper(num_eval_processes, env, env_config, planner_config)
 
-        # setup agent
-        agent = createAgent()
-        eval_agent = createAgent(test=True)
+    # setup agent
+    agent = createAgent()
+    eval_agent = createAgent(test=True)
 
-        # .train() is required for equivariant network
-        agent.train()
-        eval_agent.train()
+    # .train() is required for equivariant network
+    agent.train()
+    eval_agent.train()
 
-        bcfd_file_name = env + '_expert_buffer_'+str(data_expert_demos) + "_" + "seed" + str(seed) + "_"
-        load_model_dir = "models/" + bcfd_file_name[:-1] + "/" + algorithm + "/"
+    bcfd_file_name = env + '_expert_buffer_'+str(data_expert_demos) + "_" + "seed" + str(seed) + "_"
+    load_model_dir = "models/" + bcfd_file_name[:-1] + "/" + algorithm +"_data" + "/"
 
-        print("Loading Model Directory: {}".format(load_model_dir))
-        model_file = os.listdir(load_model_dir)[0]
-        load_model_path = load_model_dir + model_file[:-5]
-        print("Loading Model: {}".format(load_model_path))
-        agent.loadModel(load_model_path)
-        print("Model Loaded")
+    print("Loading Model Directory: {}".format(load_model_dir))
+    model_file = os.listdir(load_model_dir)[0]
+    load_model_path = load_model_dir + model_file[:-5]
+    print("Loading Model: {}".format(load_model_path))
+    agent.loadModel(load_model_path)
+    print("Model Loaded")
 
-        os.makedirs("datasets/", exist_ok=True)
+    os.makedirs("datasets/", exist_ok=True)
 
 
-        hyper_parameters['model_shape'] = agent.getModelStr()
-        replay_buffer = QLearningBuffer(buffer_size)
-        replay_buffer_mix = QLearningBuffer(offline_buffer_size)
-        replay_buffer_sub_optimal = QLearningBuffer(offline_buffer_size)
+    hyper_parameters['model_shape'] = agent.getModelStr()
+    replay_buffer = QLearningBuffer(buffer_size)
+    replay_buffer_mix = QLearningBuffer(offline_buffer_size)
+    replay_buffer_sub_optimal = QLearningBuffer(offline_buffer_size)
+    
+
+    if not no_bar:
+        pbar = tqdm(total=max_train_step)
+        pbar.set_description('Episodes:0; Reward:0.0;Time: 0.0')
+    timer_start = time.time()
+
+    states, obs = envs.reset()
+    num_training_steps = 0
+    episode_rewards = []
+    episode_reward = [0 for _ in range(num_processes)]
+    current_eval_reward = 0
+
+    buffer_episode_rewards = []
+    buffer_episode_number = 0
+
+
+    while num_training_steps < max_train_step:
+        is_expert = 0
+        actions_star_idx, actions_star = agent.getEGreedyActions(states, obs,eps=0)
         
 
-        if not no_bar:
-            pbar = tqdm(total=max_train_step)
-            pbar.set_description('Episodes:0; Reward:0.0;Time: 0.0')
-        timer_start = time.time()
+        envs.stepAsync(actions_star, auto_reset=False)
+        num_training_steps += num_processes
 
-        states, obs = envs.reset()
-        num_training_steps = 0
-        episode_rewards = []
-        episode_reward = [0 for _ in range(num_processes)]
-        current_eval_reward = 0
+        
+        if data_collection_type == 'sub_optimal':
+            if not data_collection_transitions:
+                if buffer_episode_number >= data_demos:
+                    print("Sub Optimal Replay Buffer Size: {}".format(len(replay_buffer_sub_optimal)))
+                    avg_buffer_episode_reward = np.mean(buffer_episode_rewards)
 
-        buffer_episode_rewards = []
-        buffer_episode_number = 0
-
-
-        while num_training_steps < max_train_step:
-            is_expert = 0
-            actions_star_idx, actions_star = agent.getEGreedyActions(states, obs,eps=0)
-            
-
-            envs.stepAsync(actions_star, auto_reset=False)
-            num_training_steps += num_processes
-
-            
-            if data_collection_type == 'sub_optimal':
-                if not data_collection_transitions:
-                    if buffer_episode_number >= data_demos:
-                        print("Sub Optimal Replay Buffer Size: {}".format(len(replay_buffer_sub_optimal)))
-                        avg_buffer_episode_reward = np.mean(buffer_episode_rewards)
-
-                        if obs_type != 'pixel':
-                            replay_buffer_sub_optimal.saveBuffer("datasets/" + env + '_bc_sub_optimal_buffer_'+str(data_reward_limit)+ "_" + "vector" + "_"+ str(avg_buffer_episode_reward)+ "_" + str(buffer_episode_number) + "_"  + str(seed))
-                        else:
-                            replay_buffer_sub_optimal.saveBuffer("datasets/" + env + '_bc_sub_optimal_buffer_'+str(data_reward_limit)+ "_"+ str(avg_buffer_episode_reward)+ "_" + str(buffer_episode_number) + "_" + str(seed))
-                    
-                        print("#######################################")
-                        print("Finishing Data Collection: Sub Optimal")
-                        print("#######################################")
-
-                        break
-
-
-            states_, obs_, rewards, dones = envs.stepWait()
-
-            done_idxes = torch.nonzero(dones).squeeze(1)
-            if done_idxes.shape[0] != 0:
-                reset_states_, reset_obs_ = envs.reset_envs(done_idxes)
-                for j, idx in enumerate(done_idxes):
-                    states_[idx] = reset_states_[j]
-                    obs_[idx] = reset_obs_[j]
-
-                    episode_rewards.append(episode_reward[idx])
-
-                    if idx == 0:    
-                        buffer_episode_rewards.append(episode_reward[0])
-                        buffer_episode_number += 1
-
-                    episode_reward[idx] = 0
-
-                    
-
-            
-            for i in range(num_processes):
-                transition = ExpertTransition(states[i].numpy(), obs[i].numpy(), actions_star_idx[i].numpy(),
-                                                rewards[i].numpy(), states_[i].numpy(), obs_[i].numpy(), dones[i].numpy(),
-                                                np.array(100), np.array(is_expert))
-                if obs_type == 'pixel':
-                    transition = normalizeTransition(transition)
-                replay_buffer.add(transition)
-
-                if i == 0:
-                    if data_collection_type == 'mix':
-                        replay_buffer_mix.add(transition)
-                    elif data_collection_type == 'sub_optimal':
-                        replay_buffer_sub_optimal.add(transition)
-            
-            
-            for i in range(num_processes):
-                episode_reward[i] += rewards[i]
-
-            
-            states = copy.copy(states_)
-            obs = copy.copy(obs_)
-
-            if (time.time() - start_time)/3600 > time_limit:
-                break
-
-            if not no_bar:
-                timer_final = time.time()
-
-                description = 'Action Step:{}; Reward:{:.03f}; Time:{:.03f}'.format(
-                    num_training_steps, np.mean(episode_rewards[-100:]) if len(episode_rewards) > 0 else 0, current_eval_reward,
-                    timer_final - timer_start)
+                    if obs_type != 'pixel':
+                        replay_buffer_sub_optimal.saveBuffer("datasets/" + env + '_bc_sub_optimal_buffer_'+str(data_reward_limit)+ "_" + "vector" + "_"+ str(avg_buffer_episode_reward)+ "_" + str(buffer_episode_number) + "_"  + str(seed))
+                    else:
+                        replay_buffer_sub_optimal.saveBuffer("datasets/" + env + '_bc_sub_optimal_buffer_'+str(data_reward_limit)+ "_"+ str(avg_buffer_episode_reward)+ "_" + str(buffer_episode_number) + "_" + str(seed))
                 
-                pbar.set_description(description)
-                timer_start = timer_final
-                pbar.update(num_training_steps-pbar.n)
+                    print("#######################################")
+                    print("Finishing Data Collection: Sub Optimal")
+                    print("#######################################")
+
+                    break
+
+
+        states_, obs_, rewards, dones = envs.stepWait()
+
+        done_idxes = torch.nonzero(dones).squeeze(1)
+        if done_idxes.shape[0] != 0:
+            reset_states_, reset_obs_ = envs.reset_envs(done_idxes)
+            for j, idx in enumerate(done_idxes):
+                states_[idx] = reset_states_[j]
+                obs_[idx] = reset_obs_[j]
+
+                episode_rewards.append(episode_reward[idx])
+
+                if idx == 0:    
+                    buffer_episode_rewards.append(episode_reward[0])
+                    buffer_episode_number += 1
+
+                episode_reward[idx] = 0
+
+                
+
+        
+        for i in range(num_processes):
+            transition = ExpertTransition(states[i].numpy(), obs[i].numpy(), actions_star_idx[i].numpy(),
+                                            rewards[i].numpy(), states_[i].numpy(), obs_[i].numpy(), dones[i].numpy(),
+                                            np.array(100), np.array(is_expert))
+            if obs_type == 'pixel':
+                transition = normalizeTransition(transition)
+            replay_buffer.add(transition)
+
+            if i == 0:
+                if data_collection_type == 'mix':
+                    replay_buffer_mix.add(transition)
+                elif data_collection_type == 'sub_optimal':
+                    replay_buffer_sub_optimal.add(transition)
+        
+        
+        for i in range(num_processes):
+            episode_reward[i] += rewards[i]
+
+        
+        states = copy.copy(states_)
+        obs = copy.copy(obs_)
+
+        if (time.time() - start_time)/3600 > time_limit:
+            break
+
+        if not no_bar:
+            timer_final = time.time()
+
+            description = 'Action Step:{}; Reward:{:.03f}; Time:{:.03f}'.format(
+                num_training_steps, np.mean(episode_rewards[-100:]) if len(episode_rewards) > 0 else 0, current_eval_reward,
+                timer_final - timer_start)
+            
+            pbar.set_description(description)
+            timer_start = timer_final
+            pbar.update(num_training_steps-pbar.n)
 
 
 

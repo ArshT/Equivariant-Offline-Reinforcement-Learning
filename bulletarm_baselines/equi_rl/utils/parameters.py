@@ -56,7 +56,7 @@ training_group.add_argument('--planner_episode', type=int, default=100, help='Th
 training_group.add_argument('--note', type=str, default=None)
 training_group.add_argument('--seed', type=int, default=None)
 training_group.add_argument('--pre_train_step', type=int, default=0, help='The number of pre-training steps')
-training_group.add_argument('--data_collection',action='store_true', help='If true, only collect data')
+# training_group.add_argument('--data_collection',action='store_true', help='If true, only collect data')
 training_group.add_argument('--data_collection_transitions',action='store_true', help='If true, collect a sub-optimal offline dataset with size of offline_buffer_size')
 training_group.add_argument('--data_collection_policy_bc',action='store_true', help='If true, collect a sub-optimal offline dataset with size of offline_buffer_size')
 training_group.add_argument('--data_collection_type',default='sub_optimal', choices=['sub_optimal', 'mix','optimal'], help='The type of data collection')
@@ -205,7 +205,7 @@ all_tasks = train_envs.split('_and_')
 goal_num_tasks = len(all_tasks) + 1
 
 
-data_collection = args.data_collection
+# data_collection = args.data_collection
 data_collection_transitions = args.data_collection_transitions
 data_collection_policy_bc = args.data_collection_policy_bc
 data_collection_type = args.data_collection_type
