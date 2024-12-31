@@ -35,7 +35,6 @@ from bulletarm_baselines.equi_rl.utils.torch_utils import ExpertTransition, norm
 from bulletarm_baselines.logger.baseline_logger import BaselineLogger
 
 
-
 def set_seed(s):
     np.random.seed(s)
     torch.manual_seed(s)
@@ -100,6 +99,7 @@ def train():
     eval_thread = None
     result = [0]
     start_time = time.time()
+
     if seed is not None:
         set_seed(seed)
     # setup env
@@ -115,7 +115,8 @@ def train():
     agent.train()
     eval_agent.train()
 
-    bcfd_file_name = env + '_expert_buffer_'+str(data_expert_demos) + "_" + "seed" + str(seed) + "_"
+    
+    bcfd_file_name = env + '_expert_buffer_'+str(data_expert_demos) + "_" + "seed" + str(data_policy_seed) + "_"
     load_model_dir = "models/" + bcfd_file_name[:-1] + "/" + algorithm +"_data" + "/"
 
     print("Loading Model Directory: {}".format(load_model_dir))
@@ -242,6 +243,8 @@ def train():
     print('training finished')
     if not no_bar:
         pbar.close()
+
+
 
 if __name__ == '__main__':
     train()

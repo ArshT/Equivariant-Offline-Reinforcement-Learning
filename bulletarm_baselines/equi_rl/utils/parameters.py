@@ -56,9 +56,12 @@ training_group.add_argument('--planner_episode', type=int, default=100, help='Th
 training_group.add_argument('--note', type=str, default=None)
 training_group.add_argument('--seed', type=int, default=None)
 training_group.add_argument('--pre_train_step', type=int, default=0, help='The number of pre-training steps')
+
 # training_group.add_argument('--data_collection',action='store_true', help='If true, only collect data')
+
 training_group.add_argument('--data_collection_transitions',action='store_true', help='If true, collect a sub-optimal offline dataset with size of offline_buffer_size')
 training_group.add_argument('--data_collection_policy_bc',action='store_true', help='If true, collect a sub-optimal offline dataset with size of offline_buffer_size')
+training_group.add_argument('--data_policy_seed', type=int, default=None)
 training_group.add_argument('--data_collection_type',default='sub_optimal', choices=['sub_optimal', 'mix','optimal'], help='The type of data collection')
 training_group.add_argument('--data_reward_limit', type=float, default=0.5, help='The reward limit for data collection for sub_optimal and mix')
 training_group.add_argument('--data_expert_demos', type=int, default=10, help='The number of expert demonstrations to collect')
@@ -212,6 +215,9 @@ data_collection_type = args.data_collection_type
 data_reward_limit = args.data_reward_limit
 data_expert_demos = args.data_expert_demos
 data_demos = args.data_demos
+data_policy_seed = args.data_policy_seed
+
+
 stop_model_load = args.stop_model_load
 use_one_channel = args.use_one_channel
 no_augment = args.no_augment
